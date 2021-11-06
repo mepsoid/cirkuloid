@@ -61,7 +61,7 @@ def draw
         y = center.y,
         color = game.racket.color,
         radius = game.racket.radius,
-        weight = 5.0,
+        weight = 8.0,
         start = game.racket.posTarget - halfArc,
         end = game.racket.posTarget + halfArc
     ]]

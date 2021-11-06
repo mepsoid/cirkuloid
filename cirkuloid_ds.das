@@ -2,7 +2,7 @@
 struct Racket
     color : uint = 0xFFCC33
     radius : float = 300.0
-    size : float = 40.0
+    size : float = 50.0
     pos : float // current position
     posTarget : float // target position
     posSpeed : float = 0.75 // speed of changing position per second
