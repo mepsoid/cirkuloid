@@ -1,5 +1,5 @@
-options debugger            // uncomment for debug in VS Code
-require daslib/debug        // uncomment for debug in VS Code
+//options debugger            // uncomment for debug in VS Code
+//require daslib/debug        // uncomment for debug in VS Code
 
 require daslib/decs_boost
 require daslib/media
@@ -11,16 +11,19 @@ var screenCenter : float2
 
 
 [export]
-def initialize
+def initialize(isHardReload : bool)
     set_window_title("cirkuloid")
     screenCenter = float2(
         float(get_screen_width()) / 2.0,
         float(get_screen_height()) / 2.0)
-    racketCreate(0xFFCC66)
+    if isHardReload
+        createRacket(0xFFCC66)
+        levelCreate()
+        commit()
 
 
 [export]
-def act(dt : float)
+def act
     if get_key(VK_ESCAPE)
         schedule_quit_game()
     decs_stage("update")
@@ -45,7 +48,7 @@ struct CompRacket
     lives : int = 3
 
 
-def racketCreate(color : uint)
+def createRacket(color : uint)
     create_entity <| @ (eid, cmp)
         cmp |> set("eid", eid)
         apply_decs_template(cmp, [[CompRacket() color = color ]])
@@ -74,30 +77,47 @@ def updateRacket(var racket : CompRacket)
     if axisMovedX * axisMovedX + axisMovedY * axisMovedY > 0.15 // gamepad dead zone
         posTarget = posToAngle(float2(axisMovedX, axisMovedY))
     
-    posTarget = posTarget - ceil(posTarget)
+    posTarget -= ceil(posTarget)
     if posTarget < 0.0
         posTarget += 1.0
     racket.posTarget = posTarget
+
+    // slide racket to target position
+/*
+    var pos = racket.pos
+    var diff = posTarget - pos
+    var direction = sign(diff)
+    diff = abs(diff)
+    let diff1 = abs(1.0 + pos - posTarget)
+    if diff1 < diff
+        diff = diff1
+        direction = -direction
+    if diff > 0.001
+        let speed = 0.01// min(diff, racket.posSpeedMax) / dt
+        pos += speed * direction
+        racket.pos = pos
+*/
+    racket.pos = posTarget
 
 
 [decs(stage = draw)]
 def drawRacket(var racket : CompRacket)
     let halfArc = racket.size / (PI * 4.0 * racket.radius)
-    var start = racket.posTarget - halfArc
+    var start = racket.pos - halfArc
     start -= floor(start)
     if start < 0.0
         start += 1.0
-    var end = racket.posTarget + halfArc
+    var end = racket.pos + halfArc
     end -= floor(end)
     if end < start
         end += 1.0
     let angleEnd = PI * 2.0 * end
     var angleIn = PI * 2.0 * start
     var angleOut = angleIn
-    let arc = angleEnd - angleIn
-    let polys = ceil(arc * racket.radius / POLY_FACET)
-    let deltaIn = arc / polys
-    let deltaOut = arc / ceil(arc * (racket.radius + RACKET_WEIGHT) / POLY_FACET)
+    let angleDiff = angleEnd - angleIn
+    let polys = ceil(angleDiff * racket.radius / POLY_FACET)
+    let deltaIn = angleDiff / polys
+    let deltaOut = angleDiff / ceil(angleDiff * (racket.radius + RACKET_WEIGHT) / POLY_FACET)
     for i in range(0, int(polys))
         var points : array<float2>
         points |> sectorPoint(screenCenter, racket.radius, angleIn)
@@ -116,3 +136,41 @@ def posToAngle(position : float2; center : float2 = float2())
 
 def sectorPoint(var points : array<float2>; center : float2; radius : float; angle : float)
     points |> push(float2(center.x + radius * cos(angle), center.y + radius * sin(angle)))
+
+
+// STONES //////////////////////////////////////////////////////////////////////
+
+[decs_template]
+struct CompStone
+    color : uint
+    pos : float2
+    radius : float
+
+
+def createStone(color : uint; radius : float; pos : float2)
+    create_entity <| @ (eid, cmp)
+        cmp |> set("eid", eid)
+        apply_decs_template(cmp, [[CompStone color = color, pos = pos, radius = radius ]])
+
+
+def levelCreate
+    let STONE_RADIUS = 16.0
+    let STONE_GAP = 6.0
+    let STONE_CIRCLES = 6
+
+    var radius = 0.0
+    for i in range(0, STONE_CIRCLES)
+        let count = max(floor(PI * 2.0 * radius / (2.0 * STONE_RADIUS + STONE_GAP)), 1.0)
+        let angleStep = PI * 2.0 / count
+        var angle = i % 2 != 0 ? 0.0 : angleStep / 2.0
+        for j in range(0, int(count))
+            createStone(0x669933, STONE_RADIUS, float2(
+                radius * cos(angle),
+                radius * sin(angle)))
+            angle += angleStep
+        radius += 2.0 * STONE_RADIUS + STONE_GAP
+
+
+[decs(stage = draw)]
+def drawStone(var stone : CompStone)
+    fill_circle(screenCenter.x + stone.pos.x, screenCenter.y + stone.pos.y, stone.radius, stone.color)
