@@ -37,6 +37,7 @@ def act
 [export]
 def draw
     decs_stage("draw")
+    fps()
 
 
 // RACKET //////////////////////////////////////////////////////////////////////
@@ -215,6 +216,20 @@ def drawBall(var ball : CompBall)
 // UTILITIES ///////////////////////////////////////////////////////////////////
 
 var seed : int4
-
 def random(from, to : auto)
     return from + random_float(seed) * (to - from)
+
+
+var fpsCooldown : int
+var fpsValue : int
+var fpsColor : uint
+def fps
+    set_font_size(12)
+    text_out(3, get_screen_height() - 15, "FPS:{fpsValue}", fpsColor)
+    if --fpsCooldown > 0
+        return
+    fpsCooldown = fpsValue
+    fpsValue = int(1.0 / get_delta_time())
+    fpsColor = (fpsValue > 55 ? 0x113300
+        : fpsValue > 40 ? 0x775500
+        : 0x550000)
