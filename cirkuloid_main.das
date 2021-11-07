@@ -6,6 +6,9 @@ require daslib/media
 
 let POLY_FACET = 10.0 // max size of polygon interpolation in pixels
 let RACKET_WEIGHT = 8.0 // width of racket
+let STONE_COLORS <- [{ auto[]
+    0x002244; 0x114477; 0x441188; 0x992211;
+    0xBB5522; 0xEEAA33; 0xFFDD66; 0xFFFFFF }]
 
 var screenCenter : float2
 
@@ -17,7 +20,7 @@ def initialize(isHardReload : bool)
         float(get_screen_width()) / 2.0,
         float(get_screen_height()) / 2.0)
     if isHardReload
-        createRacket(0xFFCC66)
+        createRacket(0x66CCFF)
         levelCreate()
         commit()
 
@@ -142,21 +145,22 @@ def sectorPoint(var points : array<float2>; center : float2; radius : float; ang
 
 [decs_template]
 struct CompStone
-    color : uint
     pos : float2
     radius : float
+    resist : int
+    damage : int
 
 
-def createStone(color : uint; radius : float; pos : float2)
+def createStone(resist : int; radius : float; pos : float2)
     create_entity <| @ (eid, cmp)
         cmp |> set("eid", eid)
-        apply_decs_template(cmp, [[CompStone color = color, pos = pos, radius = radius ]])
+        apply_decs_template(cmp, [[CompStone resist = resist, pos = pos, radius = radius ]])
 
 
 def levelCreate
     let STONE_RADIUS = 16.0
     let STONE_GAP = 6.0
-    let STONE_CIRCLES = 6
+    let STONE_CIRCLES = 7
 
     var radius = 0.0
     for i in range(0, STONE_CIRCLES)
@@ -164,7 +168,7 @@ def levelCreate
         let angleStep = PI * 2.0 / count
         var angle = i % 2 != 0 ? 0.0 : angleStep / 2.0
         for j in range(0, int(count))
-            createStone(0x669933, STONE_RADIUS, float2(
+            createStone(STONE_CIRCLES - i - 1, STONE_RADIUS, float2(
                 radius * cos(angle),
                 radius * sin(angle)))
             angle += angleStep
@@ -173,4 +177,5 @@ def levelCreate
 
 [decs(stage = draw)]
 def drawStone(var stone : CompStone)
-    fill_circle(screenCenter.x + stone.pos.x, screenCenter.y + stone.pos.y, stone.radius, stone.color)
+    let color = STONE_COLORS[min(max(stone.resist - stone.damage, 0), length(STONE_COLORS))]
+    fill_circle(screenCenter.x + stone.pos.x, screenCenter.y + stone.pos.y, stone.radius, color)
