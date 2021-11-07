@@ -29,6 +29,8 @@ def initialize(isHardReload : bool)
 def act
     if get_key(VK_ESCAPE)
         schedule_quit_game()
+    if get_mouse_button_down(MB_LEFT)
+        createBall()
     decs_stage("update")
 
 
@@ -52,7 +54,7 @@ struct CompRacket
 
 
 def createRacket(color : uint)
-    create_entity <| @ (eid, cmp)
+    create_entity <| @(eid, cmp)
         cmp |> set("eid", eid)
         apply_decs_template(cmp, [[CompRacket() color = color ]])
 
@@ -152,7 +154,7 @@ struct CompStone
 
 
 def createStone(resist : int; radius : float; pos : float2)
-    create_entity <| @ (eid, cmp)
+    create_entity <| @(eid, cmp)
         cmp |> set("eid", eid)
         apply_decs_template(cmp, [[CompStone resist = resist, pos = pos, radius = radius ]])
 
@@ -179,3 +181,40 @@ def levelCreate
 def drawStone(var stone : CompStone)
     let color = STONE_COLORS[min(max(stone.resist - stone.damage, 0), length(STONE_COLORS))]
     fill_circle(screenCenter.x + stone.pos.x, screenCenter.y + stone.pos.y, stone.radius, color)
+
+
+// BALLS ///////////////////////////////////////////////////////////////////////
+
+[decs_template]
+struct CompBall
+    pos : float2
+    vel : float2
+    radius : float = 6.0
+
+
+def createBall()
+    let radius = random(0.0, 250.0)
+    let angle = random(0.0, PI * 2.0)
+    create_entity <| @(eid, cmp)
+        cmp |> set("eid", eid)
+        apply_decs_template(cmp, [[CompBall()
+            pos = float2(radius * cos(angle), radius * sin(angle)),
+            vel = float2(random(-1.0, 1.0), random(-1.0, 1.0)) ]])
+
+
+[decs(stage = update)]
+def updateBall(var ball : CompBall)
+    ball.pos += ball.vel
+
+
+[decs(stage = draw)]
+def drawBall(var ball : CompBall)
+    fill_circle(screenCenter.x + ball.pos.x, screenCenter.y + ball.pos.y, ball.radius, 0xFFFFFF)
+
+
+// UTILITIES ///////////////////////////////////////////////////////////////////
+
+var seed : int4
+
+def random(from, to : auto)
+    return from + random_float(seed) * (to - from)
