@@ -206,11 +206,21 @@ def createBall()
 [decs(stage = update)]
 def updateBall(var ball : CompBall)
     ball.pos += ball.vel
+    if !isCollide(float2(), ball.pos, 300.0)
+        let norm = normalize(-ball.pos)
+        ball.vel -= 2.0 * norm * dot(ball.vel, norm)
 
 
 [decs(stage = draw)]
 def drawBall(var ball : CompBall)
     fill_circle(screenCenter.x + ball.pos.x, screenCenter.y + ball.pos.y, ball.radius, 0xFFFFFF)
+
+
+def isCollide(pos1, pos2 : float2; dist : float)
+    let diff = abs(pos1 - pos2)
+    if diff.x > dist || diff.y > dist
+        return false
+    return diff.x * diff.x + diff.y * diff.y <= dist * dist
 
 
 // UTILITIES ///////////////////////////////////////////////////////////////////
