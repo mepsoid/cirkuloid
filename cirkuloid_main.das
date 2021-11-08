@@ -146,7 +146,7 @@ def sectorPoint(var points : array<float2>; center : float2; radius : float; ang
 
 // STONES //////////////////////////////////////////////////////////////////////
 
-[decs_template]
+[decs_template(prefix)]
 struct CompStone
     pos : float2
     radius : float
@@ -176,6 +176,12 @@ def levelCreate
                 radius * sin(angle)))
             angle += angleStep
         radius += 2.0 * STONE_RADIUS + STONE_GAP
+
+
+[decs(stage = update)]
+def updateStone(eid : EntityId; var stone : CompStone)
+    if stone.damage >= stone.resist
+        delete_entity(eid)
 
 
 [decs(stage = draw)]
@@ -209,6 +215,12 @@ def updateBall(var ball : CompBall)
     if !isCollide(float2(), ball.pos, 300.0)
         let norm = normalize(-ball.pos)
         ball.vel -= 2.0 * norm * dot(ball.vel, norm)
+
+    query() <| $(pos : float2; radius : float; var damage : int&)
+        if isCollide(ball.pos, pos, ball.radius + radius)
+            let norm = normalize(pos - ball.pos)
+            ball.vel -= 2.0 * norm * dot(ball.vel, norm)
+            damage += 1
 
 
 [decs(stage = draw)]
