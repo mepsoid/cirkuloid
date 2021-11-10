@@ -6,6 +6,7 @@ require daslib/media
 
 let POLY_FACET = 10.0 // max size of polygon interpolation in pixels
 let RACKET_WEIGHT = 8.0 // width of racket
+let VOID_RADIUS = 350.0 // distance to remove lost ball
 let STONE_COLORS <- [{ auto[]
     0x002244; 0x114477; 0x441188; 0x992211;
     0xBB5522; 0xEEAA33; 0xFFDD66; 0xFFFFFF }]
@@ -75,13 +76,13 @@ def updateRacket(var racket : CompRacket)
     // mouse controls
     let mouseMoved : float2 = get_mouse_position_delta()
     if mouseMoved.x != 0.0 || mouseMoved.y != 0.0
-        posTarget = posToAngle(get_mouse_position(), screenCenter)
+        posTarget = posToArc(get_mouse_position(), screenCenter)
 
     // gamepad controls
     let axisMovedX = get_axis(AXIS_PRIMARY_X)
     let axisMovedY = get_axis(AXIS_PRIMARY_Y)
     if axisMovedX * axisMovedX + axisMovedY * axisMovedY > 0.15 // gamepad dead zone
-        posTarget = posToAngle(float2(axisMovedX, axisMovedY))
+        posTarget = posToArc(float2(axisMovedX, axisMovedY))
     
     posTarget -= ceil(posTarget)
     if posTarget < 0.0
@@ -134,10 +135,6 @@ def drawRacket(var racket : CompRacket)
         points |> sectorPoint(screenCenter, racket.radius + RACKET_WEIGHT, min(angleOut, angleEnd))
         points |> sectorPoint(screenCenter, racket.radius, angleIn)
         fill_convex_polygon(points, racket.color)
-
-
-def posToAngle(position : float2; center : float2 = float2())
-    return atan2(position.y - center.y, position.x - center.x) / (PI * 2.0)
 
 
 def sectorPoint(var points : array<float2>; center : float2; radius : float; angle : float)
@@ -210,11 +207,26 @@ def createBall()
 
 
 [decs(stage = update)]
-def updateBall(var ball : CompBall)
+def updateBall(eid : EntityId; var ball : CompBall)
     ball.pos += ball.vel
-    if !isCollide(float2(), ball.pos, 300.0)
-        let norm = normalize(-ball.pos)
-        ball.vel -= 2.0 * norm * dot(ball.vel, norm)
+    if !isCollide(float2(), ball.pos, VOID_RADIUS)
+        // ball is lost
+        delete_entity(eid)
+        return
+
+    query() <| $(CompRacket_pos : float; CompRacket_size : float; CompRacket_radius : float)
+        if !isCollide(float2(), ball.pos, CompRacket_radius)
+            let pos = posToArc(ball.pos)
+            let halfArc = CompRacket_size / (PI * 4.0 * CompRacket_radius)
+            var posMin = CompRacket_pos - halfArc
+            posMin -= floor(posMin)
+            if posMin < 0.0
+                posMin += 1.0
+            var posMax = CompRacket_pos + halfArc
+            posMax -= floor(posMax)
+            if (posMin <= pos) == (pos <= posMax)
+                let norm = normalize(-ball.pos)
+                ball.vel -= 2.0 * norm * dot(ball.vel, norm)
 
     query() <| $(pos : float2; radius : float; var damage : int&)
         if isCollide(ball.pos, pos, ball.radius + radius)
@@ -236,6 +248,11 @@ def isCollide(pos1, pos2 : float2; dist : float)
 
 
 // UTILITIES ///////////////////////////////////////////////////////////////////
+
+def posToArc(position : float2; center : float2 = float2())
+    var arc = atan2(position.y - center.y, position.x - center.x) / (PI * 2.0)
+    return arc < 0.0 ? arc + 1.0 : arc
+
 
 var seed : int4
 def random(from, to : auto)
