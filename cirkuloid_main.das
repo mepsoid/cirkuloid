@@ -55,27 +55,29 @@ def processControls
 
 
 def racketSet(racketIdx : int; newPos : float)
-    query() <| $(CompRacket_index : int; var CompRacket_posTarget : float&)
-        if racketIdx != CompRacket_index
+    query() <| $(var racket : CompRacket)
+        if racketIdx != racket.index
             return
-        CompRacket_posTarget = newPos - ceil(newPos)
-        if CompRacket_posTarget < 0.0
-            CompRacket_posTarget += 1.0
+        var posTarget = newPos - ceil(newPos)
+        if posTarget < 0.0
+            posTarget += 1.0
+        racket.posTarget = posTarget
 
 
 def racketAdd(racketIdx : int; deltaPos : float)
-    query() <| $(CompRacket_index : int; var CompRacket_posTarget : float&)
-        if racketIdx != CompRacket_index
+    query() <| $(var racket : CompRacket)
+        if racketIdx != racket.index
             return
-        CompRacket_posTarget += deltaPos
-        CompRacket_posTarget -= ceil(CompRacket_posTarget)
-        if CompRacket_posTarget < 0.0
-            CompRacket_posTarget += 1.0
+        var posTarget = racket.posTarget + deltaPos
+        posTarget -= ceil(posTarget)
+        if posTarget < 0.0
+            posTarget += 1.0
+        racket.posTarget = posTarget
 
 
 def racketAction(racketIdx : int)
-    query() <| $(var eid: EntityId; CompRacket_index : int)
-        if racketIdx != CompRacket_index
+    query() <| $(var eid : EntityId; var racket : CompRacket)
+        if racketIdx != racket.index
             return
         // dummy action for now; should use current booster
         createBall(eid)
@@ -268,12 +270,12 @@ def createBall(var ownerId : EntityId)
     create_entity <| @(eid, cmp)
         cmp |> set("eid", eid)
         apply_decs_template(cmp, [[CompBall
-            owner := ownerId,
+            owner = ownerId,
             pos = float2(radius * cos(angle), radius * sin(angle)),
             vel = float2(random(-5.0, 5.0), random(-5.0, 5.0)),
             radius = 6.0 ]])
-    query(ownerId) <| $(var CompRacket_balls : int&)
-        ++CompRacket_balls
+    query(ownerId) <| $(var racket : CompRacket)
+        ++racket.balls
 
 
 [decs(stage = update)]
@@ -281,24 +283,26 @@ def updateBall(eid : EntityId; var ball : CompBall)
     ball.pos += ball.vel
     if !isCollide(float2(), ball.pos, VOID_RADIUS)
         // ball is lost
-        query(ball.owner) <| $(var CompRacket_balls : int&; var CompRacket_lives : int&)
-            --CompRacket_balls
-            if CompRacket_balls <= 0
-                --CompRacket_lives
-                if CompRacket_lives <= 0
+        query() <| $(var eid : EntityId; var racket : CompRacket)
+            if ball.owner != eid
+                return
+            --racket.balls
+            if racket.balls <= 0
+                --racket.lives
+                if racket.lives <= 0
                     delete_entity(ball.owner)
         delete_entity(eid)
         return
 
-    query() <| $(eid : EntityId; CompRacket_pos : float; CompRacket_size : float; CompRacket_radius : float; var CompRacket_balls : int&)
-        if !isCollide(float2(), ball.pos, CompRacket_radius)
+    query() <| $(var eid : EntityId; var racket : CompRacket)
+        if !isCollide(float2(), ball.pos, racket.radius)
             let pos = posToArc(ball.pos)
-            let halfArc = CompRacket_size / (PI * 4.0 * CompRacket_radius)
-            var posMin = CompRacket_pos - halfArc
+            let halfArc = racket.size / (PI * 4.0 * racket.radius)
+            var posMin = racket.pos - halfArc
             posMin -= floor(posMin)
             if posMin < 0.0
                 posMin += 1.0
-            var posMax = CompRacket_pos + halfArc
+            var posMax = racket.pos + halfArc
             posMax -= floor(posMax)
             if (posMin <= pos) == (pos <= posMax)
                 let norm = normalize(-ball.pos)
@@ -306,26 +310,29 @@ def updateBall(eid : EntityId; var ball : CompBall)
                 if ball.owner != eid
                     // take possession of another's ball on bounce
                     ball.owner = eid
-                    ++CompRacket_balls
+                    ++racket.balls
                     
 
-    query() <| $(CompStone_pos : float2; CompStone_radius : float; CompStone_resist : int; var CompStone_damage : int&)
-        if isCollide(ball.pos, CompStone_pos, ball.radius + CompStone_radius)
-            let norm = normalize(CompStone_pos - ball.pos)
+    query() <| $(var stone : CompStone)
+        if isCollide(ball.pos, stone.pos, ball.radius + stone.radius)
+            let norm = normalize(stone.pos - ball.pos)
             ball.vel -= 2.0 * norm * dot(ball.vel, norm)
-            CompStone_damage += 1
-            if CompStone_damage == CompStone_resist
-                query(ball.owner) <| $(var CompRacket_score : int&)
-                    let bonus = CompStone_resist * 5
-                    CompRacket_score += bonus
-                    createInfo(CompStone_pos, norm, "+{bonus}")
+            ++stone.damage
+            if stone.damage == stone.resist
+                query() <| $(var eid : EntityId; var racket : CompRacket)
+                    if ball.owner != eid
+                        return
+                    let bonus = stone.resist * 5
+                    racket.score += bonus
+                    createInfo(stone.pos, norm, "+{bonus}")
 
 
 [decs(stage = draw)]
 def drawBall(var ball : CompBall)
     var color = 0x666666
-    query(ball.owner) <| $(CompRacket_color : uint)
-        color = CompRacket_color
+    query() <| $(var eid : EntityId; var racket : CompRacket)
+        if ball.owner == eid
+            color = racket.color
     fill_circle(screenCenter.x + ball.pos.x, screenCenter.y + ball.pos.y, ball.radius, color)
 
 
