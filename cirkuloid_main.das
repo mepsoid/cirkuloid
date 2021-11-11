@@ -1,15 +1,15 @@
-//options debugger            // uncomment for debug in VS Code
-//require daslib/debug        // uncomment for debug in VS Code
-
 require daslib/decs_boost
 require daslib/media
+
+options debugger
+require daslib/debug
 
 let POLY_FACET = 10.0 // max size of polygon interpolation in pixels
 let RACKET_WEIGHT = 8.0 // width of racket
 let VOID_RADIUS = 350.0 // distance to remove lost ball
-let STONE_COLORS <- [{ auto[]
+let STONE_COLORS <- mkStoneColors([{ auto[]
     0x002244; 0x114477; 0x441188; 0x992211;
-    0xBB5522; 0xEEAA33; 0xFFDD66; 0xFFFFFF }]
+    0xBB5522; 0xEEAA33; 0xFFDD66; 0xFFFFFF }])
 
 var screenCenter : float2
 
@@ -27,7 +27,7 @@ def initialize(isHardReload : bool)
 
 
 [export]
-def act
+def act(_ : float)
     if get_key(VK_ESCAPE)
         schedule_quit_game()
     if get_mouse_button_down(MB_LEFT)
@@ -183,7 +183,7 @@ def updateStone(eid : EntityId; var stone : CompStone)
 
 [decs(stage = draw)]
 def drawStone(var stone : CompStone)
-    let color = STONE_COLORS[min(max(stone.resist - stone.damage, 0), length(STONE_COLORS))]
+    let color = STONE_COLORS[stone.resist][min(stone.damage, stone.resist)]
     fill_circle(screenCenter.x + stone.pos.x, screenCenter.y + stone.pos.y, stone.radius, color)
 
 
@@ -257,6 +257,24 @@ def posToArc(position : float2; center : float2 = float2())
 var seed : int4
 def random(from, to : auto)
     return from + random_float(seed) * (to - from)
+
+
+def colorCompFade(color : uint; ratio : float; bits : uint = 0u)
+    return uint(float((color >> bits) & 0xFF) * ratio) << bits
+
+
+def mkStoneColors(basic : array<uint>)
+    var faded : array<array<uint>>
+    let count = length(basic)
+    faded |> resize(count)
+    for resist, color in range(count), basic
+        faded[resist] |> resize(resist + 1)
+        for damage in range(resist)
+            let ratio = float(resist - damage) / float(resist)
+            faded[resist][damage] = (colorCompFade(color, ratio, 16u)
+                | colorCompFade(color, ratio, 8u)
+                | colorCompFade(color, ratio))
+    return <- faded
 
 
 var fpsCooldown : int
