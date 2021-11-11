@@ -243,7 +243,7 @@ def updateBall(eid : EntityId; var ball : CompBall)
         delete_entity(eid)
         return
 
-    query() <| $(CompRacket_pos : float; CompRacket_size : float; CompRacket_radius : float)
+    query() <| $(eid : EntityId; CompRacket_pos : float; CompRacket_size : float; CompRacket_radius : float; var CompRacket_balls : int&)
         if !isCollide(float2(), ball.pos, CompRacket_radius)
             let pos = posToArc(ball.pos)
             let halfArc = CompRacket_size / (PI * 4.0 * CompRacket_radius)
@@ -256,6 +256,11 @@ def updateBall(eid : EntityId; var ball : CompBall)
             if (posMin <= pos) == (pos <= posMax)
                 let norm = normalize(-ball.pos)
                 ball.vel -= 2.0 * norm * dot(ball.vel, norm)
+                if ball.owner != eid
+                    // take possession of another's ball on bounce
+                    ball.owner = eid
+                    ++CompRacket_balls
+                    
 
     query() <| $(CompStone_pos : float2; CompStone_radius : float; CompStone_resist : int; var CompStone_damage : int&)
         if isCollide(ball.pos, CompStone_pos, ball.radius + CompStone_radius)
