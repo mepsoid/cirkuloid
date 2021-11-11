@@ -12,6 +12,7 @@ let STONE_COLORS <- mkStoneColors([{ auto[]
     0xBB5522; 0xEEAA33; 0xFFDD66; 0xFFFFFF }])
 
 var screenCenter : float2
+var racketId : EntityId
 
 
 [export]
@@ -21,17 +22,17 @@ def initialize(isHardReload : bool)
         float(get_screen_width()) / 2.0,
         float(get_screen_height()) / 2.0)
     if isHardReload
-        createRacket(0x66CCFF)
+        racketId = createRacket(0x66CCFF)
         levelCreate()
         commit()
 
 
-[export]
-def act(_ : float)
+[export, unused_argument(dt)]
+def act(dt : float)
     if get_key(VK_ESCAPE)
         schedule_quit_game()
     if get_mouse_button_down(MB_LEFT)
-        createBall()
+        createBall(racketId)
     decs_stage("update")
 
 
@@ -53,10 +54,11 @@ struct CompRacket
     posSpeed : float
     posSpeedMax : float = 0.75 // speed of changing position per second
     lives : int = 3
+    score : int
 
 
 def createRacket(color : uint)
-    create_entity <| @(eid, cmp)
+    return create_entity <| @(eid, cmp)
         cmp |> set("eid", eid)
         apply_decs_template(cmp, [[CompRacket() color = color ]])
 
@@ -136,6 +138,10 @@ def drawRacket(var racket : CompRacket)
         points |> sectorPoint(screenCenter, racket.radius, angleIn)
         fill_convex_polygon(points, racket.color)
 
+    // score
+    set_font_size(22)
+    text_out(get_screen_width() - 120, 3, string(racket.score), racket.color)
+
 
 def sectorPoint(var points : array<float2>; center : float2; radius : float; angle : float)
     points |> push(float2(center.x + radius * cos(angle), center.y + radius * sin(angle)))
@@ -168,7 +174,7 @@ def levelCreate
         let angleStep = PI * 2.0 / count
         var angle = i % 2 != 0 ? 0.0 : angleStep / 2.0
         for j in range(0, int(count))
-            createStone(STONE_CIRCLES - i - 1, STONE_RADIUS, float2(
+            createStone(STONE_CIRCLES - i, STONE_RADIUS, float2(
                 radius * cos(angle),
                 radius * sin(angle)))
             angle += angleStep
@@ -194,16 +200,18 @@ struct CompBall
     pos : float2
     vel : float2
     radius : float = 6.0
+    owner : EntityId
 
 
-def createBall()
+def createBall(var ownerId : EntityId)
     let radius = random(0.0, 250.0)
     let angle = random(0.0, PI * 2.0)
     create_entity <| @(eid, cmp)
         cmp |> set("eid", eid)
         apply_decs_template(cmp, [[CompBall()
+            owner := ownerId,
             pos = float2(radius * cos(angle), radius * sin(angle)),
-            vel = float2(random(-1.0, 1.0), random(-1.0, 1.0)) ]])
+            vel = float2(random(-5.0, 5.0), random(-5.0, 5.0)) ]])
 
 
 [decs(stage = update)]
@@ -228,16 +236,22 @@ def updateBall(eid : EntityId; var ball : CompBall)
                 let norm = normalize(-ball.pos)
                 ball.vel -= 2.0 * norm * dot(ball.vel, norm)
 
-    query() <| $(pos : float2; radius : float; var damage : int&)
+    query() <| $(pos : float2; radius : float; resist : int; var damage : int&)
         if isCollide(ball.pos, pos, ball.radius + radius)
             let norm = normalize(pos - ball.pos)
             ball.vel -= 2.0 * norm * dot(ball.vel, norm)
             damage += 1
+            if damage == resist
+                query(ball.owner) <| $(var CompRacket_score : int&)
+                    CompRacket_score += resist * 5
 
 
 [decs(stage = draw)]
 def drawBall(var ball : CompBall)
-    fill_circle(screenCenter.x + ball.pos.x, screenCenter.y + ball.pos.y, ball.radius, 0xFFFFFF)
+    var color = 0x666666
+    query(ball.owner) <| $(CompRacket_color : uint)
+        color = CompRacket_color
+    fill_circle(screenCenter.x + ball.pos.x, screenCenter.y + ball.pos.y, ball.radius, color)
 
 
 def isCollide(pos1, pos2 : float2; dist : float)
