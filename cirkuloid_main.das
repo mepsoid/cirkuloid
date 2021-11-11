@@ -258,7 +258,9 @@ def updateBall(eid : EntityId; var ball : CompBall)
             CompStone_damage += 1
             if CompStone_damage == CompStone_resist
                 query(ball.owner) <| $(var CompRacket_score : int&)
-                    CompRacket_score += CompStone_resist * 5
+                    let bonus = CompStone_resist * 5
+                    CompRacket_score += bonus
+                    createInfo(CompStone_pos, norm, "+{bonus}")
 
 
 [decs(stage = draw)]
@@ -274,6 +276,37 @@ def isCollide(pos1, pos2 : float2; dist : float)
     if diff.x > dist || diff.y > dist
         return false
     return diff.x * diff.x + diff.y * diff.y <= dist * dist
+
+
+// INFOS ///////////////////////////////////////////////////////////////////////
+
+[decs_template]
+struct CompInfo
+    pos : float2
+    vel : float2
+    msg : string
+    lifetime : float = 3.0
+
+
+def createInfo(pos, vel : float2; msg : string)
+    create_entity <| @(eid, cmp)
+        cmp |> set("eid", eid)
+        apply_decs_template(cmp, [[CompInfo() pos = pos, vel = vel, msg = msg ]])
+
+
+[decs(stage = update)]
+def updateInfo(eid : EntityId; var info : CompInfo)
+    info.pos += info.vel
+    info.vel *= 0.97
+    info.lifetime -= get_delta_time()
+    if info.lifetime <= 0.0
+        delete_entity(eid)
+
+
+[decs(stage = draw)]
+def drawInfo(var info : CompInfo)
+    set_font_size(12)
+    text_out(screenCenter.x + info.pos.x, screenCenter.y + info.pos.y, info.msg, 0xFFFFFF)
 
 
 // UTILITIES ///////////////////////////////////////////////////////////////////
