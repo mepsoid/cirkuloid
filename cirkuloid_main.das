@@ -156,7 +156,7 @@ def sectorPoint(var points : array<float2>; center : float2; radius : float; ang
 
 // STONES //////////////////////////////////////////////////////////////////////
 
-[decs_template(prefix)]
+[decs_template]
 struct CompStone
     pos : float2
     radius : float
@@ -251,14 +251,14 @@ def updateBall(eid : EntityId; var ball : CompBall)
                 let norm = normalize(-ball.pos)
                 ball.vel -= 2.0 * norm * dot(ball.vel, norm)
 
-    query() <| $(pos : float2; radius : float; resist : int; var damage : int&)
-        if isCollide(ball.pos, pos, ball.radius + radius)
-            let norm = normalize(pos - ball.pos)
+    query() <| $(CompStone_pos : float2; CompStone_radius : float; CompStone_resist : int; var CompStone_damage : int&)
+        if isCollide(ball.pos, CompStone_pos, ball.radius + CompStone_radius)
+            let norm = normalize(CompStone_pos - ball.pos)
             ball.vel -= 2.0 * norm * dot(ball.vel, norm)
-            damage += 1
-            if damage == resist
+            CompStone_damage += 1
+            if CompStone_damage == CompStone_resist
                 query(ball.owner) <| $(var CompRacket_score : int&)
-                    CompRacket_score += resist * 5
+                    CompRacket_score += CompStone_resist * 5
 
 
 [decs(stage = draw)]
