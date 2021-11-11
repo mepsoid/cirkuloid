@@ -47,21 +47,26 @@ def draw
 [decs_template]
 struct CompRacket
     color : uint
-    radius : float = 300.0
-    size : float = 50.0
+    radius : float
+    size : float
     pos : float // current position
     posTarget : float // target position
     posSpeed : float
-    posSpeedMax : float = 0.75 // speed of changing position per second
+    posSpeedMax : float // speed of changing position per second
     balls : int // amount of owned balls
-    lives : int = 3
+    lives : int
     score : int
 
 
 def createRacket(color : uint)
     return create_entity <| @(eid, cmp)
         cmp |> set("eid", eid)
-        apply_decs_template(cmp, [[CompRacket() color = color ]])
+        apply_decs_template(cmp, [[CompRacket
+            color = color,
+            radius = 300.0,
+            size = 50.0,
+            posSpeedMax = 0.75,
+            lives = 3 ]])
 
 
 [decs(stage = update)]
@@ -206,7 +211,7 @@ def drawStone(var stone : CompStone)
 struct CompBall
     pos : float2
     vel : float2
-    radius : float = 6.0
+    radius : float
     owner : EntityId
 
 
@@ -215,10 +220,11 @@ def createBall(var ownerId : EntityId)
     let angle = random(0.0, PI * 2.0)
     create_entity <| @(eid, cmp)
         cmp |> set("eid", eid)
-        apply_decs_template(cmp, [[CompBall()
+        apply_decs_template(cmp, [[CompBall
             owner := ownerId,
             pos = float2(radius * cos(angle), radius * sin(angle)),
-            vel = float2(random(-5.0, 5.0), random(-5.0, 5.0)) ]])
+            vel = float2(random(-5.0, 5.0), random(-5.0, 5.0)),
+            radius = 6.0 ]])
     query(ownerId) <| $(var CompRacket_balls : int&)
         ++CompRacket_balls
 
@@ -285,13 +291,13 @@ struct CompInfo
     pos : float2
     vel : float2
     msg : string
-    lifetime : float = 3.0
+    lifetime : float
 
 
 def createInfo(pos, vel : float2; msg : string)
     create_entity <| @(eid, cmp)
         cmp |> set("eid", eid)
-        apply_decs_template(cmp, [[CompInfo() pos = pos, vel = vel, msg = msg ]])
+        apply_decs_template(cmp, [[CompInfo pos = pos, vel = vel, msg = msg, lifetime = 1.0 ]])
 
 
 [decs(stage = update)]
