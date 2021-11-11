@@ -246,6 +246,7 @@ def levelCreate
 def updateStone(var eid : EntityId; var stone : CompStone)
     if stone.damage >= stone.resist
         delete_entity(eid)
+        genParticleBlast(stone.pos, stone.radius, 3.0, STONE_COLORS[stone.resist][0])
 
 
 [decs(stage = draw)]
@@ -373,6 +374,49 @@ def updateInfo(var eid : EntityId; var info : CompInfo)
 def drawInfo(var info : CompInfo)
     set_font_size(12)
     text_out(screenCenter.x + info.pos.x, screenCenter.y + info.pos.y, "+{info.bonus}", info.color)
+
+
+// PARTICLES ///////////////////////////////////////////////////////////////////
+
+[decs_template]
+struct CompParticle
+    pos : float2
+    vel : float2
+    acc : float2
+    color : uint
+    lifetime : float
+
+
+[decs(stage = update)]
+def updateParticle(var eid : EntityId; var part : CompParticle)
+    part.pos += part.vel
+    part.vel += part.acc
+    part.lifetime -= get_delta_time()
+    if part.lifetime <= 0.0
+        delete_entity(eid)
+
+
+[decs(stage = draw)]
+def drawParticle(var part : CompParticle)
+    let x = screenCenter.x + part.pos.x
+    let y = screenCenter.y + part.pos.y
+    line(x, y, x - part.vel.x, y - part.vel.y, part.color)
+
+
+def genParticleBlast(pos : float2; radius, intensity : float; color : uint)
+    for i in range(int(intensity * 50.0))
+        let dist = random(0.0, radius)
+        let angle = random(0.0, PI * 2.0)
+        let speed = random(0.5, intensity * 1.7)
+        let vel = float2(speed * cos(angle), speed * sin(angle))
+        create_entity <| @(eid, cmp)
+            cmp |> set("eid", eid)
+            apply_decs_template(cmp, [[CompParticle
+                pos = pos + float2(dist * cos(angle), dist * sin(angle)),
+                vel = vel,
+                acc = -vel * 0.07 + float2(random(-0.06, 0.06), random(-0.06, 0.06)),
+                color = color,
+                lifetime = intensity / 20.0 ]])
 
 
 // UTILITIES ///////////////////////////////////////////////////////////////////
