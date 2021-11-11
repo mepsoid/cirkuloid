@@ -53,6 +53,7 @@ struct CompRacket
     posTarget : float // target position
     posSpeed : float
     posSpeedMax : float = 0.75 // speed of changing position per second
+    balls : int // amount of owned balls
     lives : int = 3
     score : int
 
@@ -138,9 +139,15 @@ def drawRacket(var racket : CompRacket)
         points |> sectorPoint(screenCenter, racket.radius, angleIn)
         fill_convex_polygon(points, racket.color)
 
+    var x = get_screen_width() - 120
     // score
     set_font_size(22)
-    text_out(get_screen_width() - 120, 3, string(racket.score), racket.color)
+    text_out(x, 3, string(racket.score), racket.color)
+
+    // lives
+    for i in range(racket.lives)
+        x -= 13
+        fill_circle(x, 17, 5, racket.color)
 
 
 def sectorPoint(var points : array<float2>; center : float2; radius : float; angle : float)
@@ -212,6 +219,8 @@ def createBall(var ownerId : EntityId)
             owner := ownerId,
             pos = float2(radius * cos(angle), radius * sin(angle)),
             vel = float2(random(-5.0, 5.0), random(-5.0, 5.0)) ]])
+    query(ownerId) <| $(var CompRacket_balls : int&)
+        ++CompRacket_balls
 
 
 [decs(stage = update)]
@@ -219,6 +228,12 @@ def updateBall(eid : EntityId; var ball : CompBall)
     ball.pos += ball.vel
     if !isCollide(float2(), ball.pos, VOID_RADIUS)
         // ball is lost
+        query(ball.owner) <| $(var CompRacket_balls : int&; var CompRacket_lives : int&)
+            --CompRacket_balls
+            if CompRacket_balls <= 0
+                --CompRacket_lives
+                if CompRacket_lives <= 0
+                    delete_entity(ball.owner)
         delete_entity(eid)
         return
 
