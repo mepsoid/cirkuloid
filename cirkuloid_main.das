@@ -151,8 +151,8 @@ def drawRacket(var racket : CompRacket)
 
     // lives
     for i in range(racket.lives)
-        x -= 13
-        fill_circle(x, 17, 5, racket.color)
+        x -= 8
+        fill_rect(x, 10, 3, 14, racket.color)
 
 
 def sectorPoint(var points : array<float2>; center : float2; radius : float; angle : float)
