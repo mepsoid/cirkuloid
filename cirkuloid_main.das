@@ -243,7 +243,7 @@ def levelCreate
 
 
 [decs(stage = update)]
-def updateStone(eid : EntityId; var stone : CompStone)
+def updateStone(var eid : EntityId; var stone : CompStone)
     if stone.damage >= stone.resist
         delete_entity(eid)
 
@@ -279,7 +279,7 @@ def createBall(var ownerId : EntityId)
 
 
 [decs(stage = update)]
-def updateBall(eid : EntityId; var ball : CompBall)
+def updateBall(var eid : EntityId; var ball : CompBall)
     ball.pos += ball.vel
     if !isCollide(float2(), ball.pos, VOID_RADIUS)
         // ball is lost
@@ -323,8 +323,8 @@ def updateBall(eid : EntityId; var ball : CompBall)
                     if ball.owner != eid
                         return
                     let bonus = stone.resist * 5
+                    createInfo(stone.pos, norm, bonus, racket.color)
                     racket.score += bonus
-                    createInfo(stone.pos, norm, "+{bonus}")
 
 
 [decs(stage = draw)]
@@ -349,18 +349,19 @@ def isCollide(pos1, pos2 : float2; dist : float)
 struct CompInfo
     pos : float2
     vel : float2
-    msg : string
+    bonus : int
+    color : uint
     lifetime : float
 
 
-def createInfo(pos, vel : float2; msg : string)
+def createInfo(pos, vel : float2; bonus : int; color : uint)
     create_entity <| @(eid, cmp)
         cmp |> set("eid", eid)
-        apply_decs_template(cmp, [[CompInfo pos = pos, vel = vel, msg = msg, lifetime = 1.0 ]])
+        apply_decs_template(cmp, [[CompInfo pos = pos, vel = vel, bonus = bonus, color = color, lifetime = 0.8 ]])
 
 
 [decs(stage = update)]
-def updateInfo(eid : EntityId; var info : CompInfo)
+def updateInfo(var eid : EntityId; var info : CompInfo)
     info.pos += info.vel
     info.vel *= 0.97
     info.lifetime -= get_delta_time()
@@ -371,7 +372,7 @@ def updateInfo(eid : EntityId; var info : CompInfo)
 [decs(stage = draw)]
 def drawInfo(var info : CompInfo)
     set_font_size(12)
-    text_out(screenCenter.x + info.pos.x, screenCenter.y + info.pos.y, info.msg, 0xFFFFFF)
+    text_out(screenCenter.x + info.pos.x, screenCenter.y + info.pos.y, "+{info.bonus}", info.color)
 
 
 // UTILITIES ///////////////////////////////////////////////////////////////////
