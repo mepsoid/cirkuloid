@@ -8,11 +8,16 @@ let POLY_FACET = 10.0 // max size of polygon interpolation in pixels
 let RACKET_WEIGHT = 8.0 // width of racket
 let VOID_RADIUS = 350.0 // distance to remove lost ball
 let STONE_COLORS <- mkStoneColors([{ auto[]
-    0x002244; 0x114477; 0x441188; 0x992211;
-    0xBB5522; 0xEEAA33; 0xFFDD66; 0xFFFFFF }])
+    0x002244; 0x004477; 0x440077; 0x770000;
+    0xBB5500; 0xEEAA33; 0xFFBB33; 0xFFDDBB }])
+let RACKET_COLORS <- [{ auto[]
+    0x66CCFF; 0xFF6666; 0x66FF66 }]
+let CONTROLS <-[{ auto[]
+    mkControlKeyboard(VK_LEFT, VK_RIGHT, VK_SPACE);
+    mkControlMouse();
+    mkControlGamepad() }]
 
 var screenCenter : float2
-var racketId : EntityId
 
 
 [export]
@@ -22,17 +27,15 @@ def initialize(isHardReload : bool)
         float(get_screen_width()) / 2.0,
         float(get_screen_height()) / 2.0)
     if isHardReload
-        racketId = createRacket(0x66CCFF)
+        for idx, color in range(length(RACKET_COLORS)), RACKET_COLORS
+            createRacket(idx, color)
         levelCreate()
         commit()
 
 
 [export, unused_argument(dt)]
 def act(dt : float)
-    if get_key(VK_ESCAPE)
-        schedule_quit_game()
-    if get_mouse_button_down(MB_LEFT)
-        createBall(racketId)
+    processControls()
     decs_stage("update")
 
 
@@ -42,10 +45,77 @@ def draw
     fps()
 
 
+// CONTROLS ////////////////////////////////////////////////////////////////////
+
+def processControls
+    if get_key(VK_ESCAPE)
+        schedule_quit_game()
+    for idx, control in range(length(CONTROLS)), CONTROLS
+        control |> invoke(idx)
+
+
+def racketSet(racketIdx : int; newPos : float)
+    query() <| $(CompRacket_index : int; var CompRacket_posTarget : float&)
+        if racketIdx != CompRacket_index
+            return
+        CompRacket_posTarget = newPos - ceil(newPos)
+        if CompRacket_posTarget < 0.0
+            CompRacket_posTarget += 1.0
+
+
+def racketAdd(racketIdx : int; deltaPos : float)
+    query() <| $(CompRacket_index : int; var CompRacket_posTarget : float&)
+        if racketIdx != CompRacket_index
+            return
+        CompRacket_posTarget += deltaPos
+        CompRacket_posTarget -= ceil(CompRacket_posTarget)
+        if CompRacket_posTarget < 0.0
+            CompRacket_posTarget += 1.0
+
+
+def racketAction(racketIdx : int)
+    query() <| $(var eid: EntityId; CompRacket_index : int)
+        if racketIdx != CompRacket_index
+            return
+        // dummy action for now; should use current booster
+        createBall(eid)
+
+
+def mkControlKeyboard(kbBack, kbForward, kbAction: int)
+    return @ <| (index : int)
+        let keyboardSpeed = get_delta_time() / 0.75//racket.posSpeedMax // adjust speed for any FPS
+        if get_key(kbBack)
+            racketAdd(index, -keyboardSpeed)
+        if get_key(kbForward)
+            racketAdd(index, keyboardSpeed)
+        if get_key_press(kbAction)
+            racketAction(index)
+
+
+def mkControlMouse()
+    return @ <| (index : int)
+        let mouseDelta = get_mouse_position_delta()
+        if mouseDelta.x != 0.0 || mouseDelta.y != 0.0
+            racketSet(index, posToArc(get_mouse_position(), screenCenter))
+        if get_mouse_button(MB_LEFT)
+            racketAction(index)
+
+
+def mkControlGamepad()
+    return @ <| (index : int)
+        let axisMovedX = get_axis(AXIS_PRIMARY_X)
+        let axisMovedY = get_axis(AXIS_PRIMARY_Y)
+        if axisMovedX * axisMovedX + axisMovedY * axisMovedY > 0.15 // gamepad dead zone
+            racketSet(index, posToArc(float2(axisMovedX, axisMovedY)))
+        if get_key(GP_A)
+            racketAction(index)
+
+
 // RACKET //////////////////////////////////////////////////////////////////////
 
 [decs_template]
 struct CompRacket
+    index : int
     color : uint
     radius : float
     size : float
@@ -58,44 +128,21 @@ struct CompRacket
     score : int
 
 
-def createRacket(color : uint)
+def createRacket(index : int; color : uint)
     return create_entity <| @(eid, cmp)
         cmp |> set("eid", eid)
         apply_decs_template(cmp, [[CompRacket
+            index = index,
             color = color,
-            radius = 300.0,
+            radius = 300.0 + float(index) * 12.0,
             size = 50.0,
+            posTarget = float(index) / 3.0,
             posSpeedMax = 0.75,
             lives = 3 ]])
 
 
 [decs(stage = update)]
 def updateRacket(var racket : CompRacket)
-    let dt = get_delta_time()
-    let keyboardSpeed = dt / racket.posSpeedMax // adjust speed for any FPS
-    var posTarget = racket.posTarget
-
-    // keyboard controls
-    if get_key(VK_LEFT)
-        posTarget -= keyboardSpeed
-    if get_key(VK_RIGHT)
-        posTarget += keyboardSpeed
-
-    // mouse controls
-    let mouseMoved : float2 = get_mouse_position_delta()
-    if mouseMoved.x != 0.0 || mouseMoved.y != 0.0
-        posTarget = posToArc(get_mouse_position(), screenCenter)
-
-    // gamepad controls
-    let axisMovedX = get_axis(AXIS_PRIMARY_X)
-    let axisMovedY = get_axis(AXIS_PRIMARY_Y)
-    if axisMovedX * axisMovedX + axisMovedY * axisMovedY > 0.15 // gamepad dead zone
-        posTarget = posToArc(float2(axisMovedX, axisMovedY))
-    
-    posTarget -= ceil(posTarget)
-    if posTarget < 0.0
-        posTarget += 1.0
-    racket.posTarget = posTarget
 
     // slide racket to target position
 /*
@@ -112,7 +159,7 @@ def updateRacket(var racket : CompRacket)
         pos += speed * direction
         racket.pos = pos
 */
-    racket.pos = posTarget
+    racket.pos = racket.posTarget
 
 
 [decs(stage = draw)]
@@ -144,7 +191,7 @@ def drawRacket(var racket : CompRacket)
         points |> sectorPoint(screenCenter, racket.radius, angleIn)
         fill_convex_polygon(points, racket.color)
 
-    var x = get_screen_width() - 120
+    var x = get_screen_width() - 120 * racket.index - 70
     // score
     set_font_size(22)
     text_out(x, 3, string(racket.score), racket.color)
