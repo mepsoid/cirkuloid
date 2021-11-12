@@ -48,6 +48,9 @@ def act(dt : float)
 [export]
 def draw
     decs_stage("draw")
+    enable_alpha_blend()
+    decs_stage("draw_aplpha")
+    disable_alpha_blend()
     drawHud()
     fps()
 
@@ -200,13 +203,11 @@ def updateBooster(var eid : EntityId; var boost : CompBooster)
         delete_entity(eid)
 
 
-[decs(stage = draw)]
+[decs(stage = draw_aplpha)]
 def drawBooster(var boost : CompBooster)
-    enable_premultiplied_alpha_blend()
     imgBooster |> draw_image_transformed(
         screenCenter.x + boost.pos.x, screenCenter.y + boost.pos.y,
-        imgBoosterTile, 0xFFCC66, imgBoosterSize, boost.rot)  
-    disable_alpha_blend()
+        imgBoosterTile, 0xFFFFCC66, imgBoosterSize, boost.rot)  
 
 
 // RACKET //////////////////////////////////////////////////////////////////////
