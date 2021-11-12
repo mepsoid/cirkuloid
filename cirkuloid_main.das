@@ -17,6 +17,9 @@ let CONTROLS <-[{ auto[]
     mkControlMouse();
     mkControlGamepad() }]
 
+var imgBooster <- create_image("assets/star.png")
+var imgBoosterSize : float2
+var imgBoosterTile : float4
 var screenCenter : float2
 
 
@@ -31,6 +34,9 @@ def initialize(isHardReload : bool)
             createRacket(idx, color)
         levelCreate()
         commit()
+    imgBooster |> premultiply_alpha()
+    imgBoosterSize = float2(imgBooster.width, imgBooster.height)
+    imgBoosterTile = float4(0.0, 0.0, float(imgBooster.width), float(imgBooster.height))
 
 
 [export, unused_argument(dt)]
@@ -255,6 +261,68 @@ def drawStone(var stone : CompStone)
     fill_circle(screenCenter.x + stone.pos.x, screenCenter.y + stone.pos.y, stone.radius, color)
 
 
+// BOOSTER /////////////////////////////////////////////////////////////////////
+
+// mostly as to do list
+enum BoosterType
+    None
+    Attempt     // immediate: +1 to racket lives
+    Score       // immediate: +50 / +100 / +250 points to score
+    Slower      // immediate: slow down own balls
+    Faster      // immediate: accelerate own balls
+    Multiplier  // immediate: add 2 balls more to every own ball
+    Attractor   // immediate: direct own balls straight to racket position
+    Braking     // continuous: lower maximum speed of racket
+    Afterburner // continuous: higher speed of racket
+    Absorber    // continuous: slow down any ball on bounce
+    Shortener   // continuous: decrease size of racket
+    Enlarger    // continuous: increase size of racket
+    Shield      // continuous: inpenetrable circular shield for own balls
+    Crusher     // continuous: own balls are breaking through without bounce
+    Sticky      // continuous: catch ball instead of bouncing
+    Autoaimer   // continuous: moves racket to nearest own ball
+    Blaster     // continuous: laser beam to shoot stones
+    Launcher    // once: rocket launcher with splash damage
+
+
+[decs_template]
+struct CompBooster
+    pos : float2
+    vel : float2
+    rot : float
+    rotv : float
+    typ : BoosterType
+
+
+def createBooster(pos, vel : float2; typ : BoosterType)
+    create_entity <| @(eid, cmp)
+        cmp |> set("eid", eid)
+        apply_decs_template(cmp, [[CompBooster
+            pos = pos,
+            vel = vel,
+            rot = random(0.0, PI * 2.0),
+            rotv = random(-0.2, 0.2),
+            typ = typ ]])
+
+
+[decs(stage = update)]
+def updateBooster(var eid : EntityId; var boost : CompBooster)
+    boost.pos += boost.vel
+    boost.rot += boost.rotv
+    boost.rotv *= 0.993
+    if !isCollide(float2(), boost.pos, VOID_RADIUS)
+        delete_entity(eid)
+
+
+[decs(stage = draw)]
+def drawBooster(var boost : CompBooster)
+    enable_premultiplied_alpha_blend()
+    imgBooster |> draw_image_transformed(
+        screenCenter.x + boost.pos.x, screenCenter.y + boost.pos.y,
+        imgBoosterTile, 0xFFCC66, imgBoosterSize, boost.rot)  
+    disable_alpha_blend()
+
+
 // BALLS ///////////////////////////////////////////////////////////////////////
 
 [decs_template]
@@ -312,7 +380,6 @@ def updateBall(var eid : EntityId; var ball : CompBall)
                     // take possession of another's ball on bounce
                     ball.owner = eid
                     ++racket.balls
-                    
 
     query() <| $(var stone : CompStone)
         if isCollide(ball.pos, stone.pos, ball.radius + stone.radius)
@@ -326,6 +393,9 @@ def updateBall(var eid : EntityId; var ball : CompBall)
                     let bonus = stone.resist * 5
                     createInfo(stone.pos, norm, bonus, racket.color)
                     racket.score += bonus
+                    let outAngle = posToArc(stone.pos) * PI * 2.0
+                    let outDir = float2(cos(outAngle), sin(outAngle))
+                    createBooster(stone.pos, outDir, BoosterType None)
 
 
 [decs(stage = draw)]
