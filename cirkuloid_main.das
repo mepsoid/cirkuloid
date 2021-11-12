@@ -11,17 +11,20 @@ let STONE_COLORS <- mkStoneColors([{ auto[]
     0x003366; 0x006699; 0x6600AA; 0xAA0000;
     0xBB5500; 0xEE9933; 0xFFCC66; 0xFFEEDD }])
 let RACKET_COLORS <- [{ auto[]
-    0x66CCFF; 0xFF6666; 0x66FF66 }]
+    0xFF66CCFF; 0xFFFF6666; 0xFF66FF66 }]
 let CONTROLS <-[{ auto[]
     mkControlKeyboard(VK_LEFT, VK_RIGHT, VK_SPACE);
     mkControlMouse();
     mkControlGamepad() }]
+var BALL_RADIUS : float
 
 var imgStone <- create_image("assets/stone.png")
 var imgStoneTile : float4
 var imgBackground <- create_image("assets/back.png")
 var imgBackgroundSize : float2
 var imgBackgroundTile : float4
+var imgBall <- create_image("assets/ball.png")
+var imgBallSize : float2
 var imgBooster <- create_image("assets/star.png")
 var imgBoosterSize : float2
 var imgBoosterTile : float4
@@ -45,6 +48,8 @@ def initialize(isHardReload : bool)
     imgBackground |> set_image_clamp(false)
     imgBackgroundSize = float2(get_screen_width(), get_screen_height())
     imgBackgroundTile = float4(0.0, 0.0, float(get_screen_width()), float(get_screen_height()))
+    imgBallSize = float2(imgBall.width, imgBall.height)
+    BALL_RADIUS = max(imgBallSize.x, imgBallSize.y) / 2.0
     imgBooster |> premultiply_alpha()
     imgBooster |> set_image_smooth(true)
     imgBoosterSize = float2(imgBooster.width, imgBooster.height)
@@ -364,7 +369,6 @@ def drawStone(var stone : CompStone)
 struct CompBall
     pos : float2
     vel : float2
-    radius : float
     owner : EntityId
 
 
@@ -376,8 +380,7 @@ def createBall(var ownerId : EntityId)
         apply_decs_template(cmp, [[CompBall
             owner = ownerId,
             pos = float2(radius * cos(angle), radius * sin(angle)),
-            vel = float2(random(-5.0, 5.0), random(-5.0, 5.0)),
-            radius = 6.0 ]])
+            vel = float2(random(-5.0, 5.0), random(-5.0, 5.0)) ]])
     query(ownerId) <| $(var racket : CompRacket)
         ++racket.balls
 
@@ -417,7 +420,7 @@ def updateBall(var eid : EntityId; var ball : CompBall)
                     ++racket.balls
 
     query() <| $(var stone : CompStone)
-        if isCollide(ball.pos, stone.pos, ball.radius + stone.radius)
+        if isCollide(ball.pos, stone.pos, BALL_RADIUS + stone.radius)
             let norm = normalize(stone.pos - ball.pos)
             ball.vel -= 2.0 * norm * dot(ball.vel, norm)
             ++stone.damage
@@ -433,13 +436,14 @@ def updateBall(var eid : EntityId; var ball : CompBall)
                     createBooster(stone.pos, outDir, BoosterType None)
 
 
-[decs(stage = draw)]
+[decs(stage = draw_collidable)]
 def drawBall(var ball : CompBall)
     var color = 0x666666
     query() <| $(var eid : EntityId; var racket : CompRacket)
         if ball.owner == eid
             color = racket.color
-    fill_circle(screenCenter.x + ball.pos.x, screenCenter.y + ball.pos.y, ball.radius, color)
+    imgBall |> draw_image(screenCenter.x + ball.pos.x - BALL_RADIUS,
+        screenCenter.y + ball.pos.y - BALL_RADIUS, color)
 
 
 def isCollide(pos1, pos2 : float2; dist : float)
