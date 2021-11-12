@@ -48,6 +48,7 @@ def act(dt : float)
 [export]
 def draw
     decs_stage("draw")
+    drawHud()
     fps()
 
 
@@ -119,6 +120,95 @@ def mkControlGamepad()
             racketAction(index)
 
 
+// BOOSTER /////////////////////////////////////////////////////////////////////
+
+// mostly as to do list
+enum BoosterType
+    None
+    Life        // immediate: +1 to racket lives
+    Points      // immediate: +50 / +100 / +250 points to score
+    Slower      // immediate: slow down own balls
+    Faster      // immediate: accelerate own balls
+    Multiplier  // immediate: add 2 balls more to every own ball
+    Attractor   // immediate: direct own balls straight to racket position
+    Braking     // continuous: lower maximum speed of racket
+    Afterburner // continuous: higher speed of racket
+    Absorber    // continuous: slow down any ball on bounce
+    Shortener   // continuous: decrease size of racket
+    Enlarger    // continuous: increase size of racket
+    Shield      // continuous: inpenetrable circular shield for own balls
+    Crusher     // continuous: own balls are breaking through without bounce
+    Sticky      // continuous: catch ball instead of bouncing
+    Autoaimer   // continuous: moves racket to nearest own ball
+    Blaster     // continuous: laser beam to shoot stones
+    Launcher    // once: rocket launcher with splash damage
+    Spawner     // once: throw ball from racket
+
+
+struct BoosterDesc
+    typ : BoosterType
+    prob : float
+    icon : string
+    lifetime : float
+    onStart : function<(index:int):void>
+    onAction : function<(index:int):void>
+    onFinish : function<(index:int):void>
+
+
+let boosters <- mkMoveBoosters([{ auto[]
+    [[BoosterDesc
+        typ = BoosterType Life,
+        prob = 1.0,
+        icon = "*",
+        lifetime = 0.0 ]]
+}])
+
+
+def mkMoveBoosters(var list : array<BoosterDesc>)
+    var res : table<BoosterType; BoosterDesc>
+    for boost in list
+        res[boost.typ] <- boost
+    return <- res
+
+
+[decs_template]
+struct CompBooster
+    pos : float2
+    vel : float2
+    rot : float
+    rotv : float
+    typ : BoosterType
+
+
+def createBooster(pos, vel : float2; typ : BoosterType)
+    create_entity <| @(eid, cmp)
+        cmp |> set("eid", eid)
+        apply_decs_template(cmp, [[CompBooster
+            pos = pos,
+            vel = vel,
+            rot = random(0.0, PI * 2.0),
+            rotv = random(-0.2, 0.2),
+            typ = typ ]])
+
+
+[decs(stage = update)]
+def updateBooster(var eid : EntityId; var boost : CompBooster)
+    boost.pos += boost.vel
+    boost.rot += boost.rotv
+    boost.rotv *= 0.993
+    if !isCollide(float2(), boost.pos, VOID_RADIUS)
+        delete_entity(eid)
+
+
+[decs(stage = draw)]
+def drawBooster(var boost : CompBooster)
+    enable_premultiplied_alpha_blend()
+    imgBooster |> draw_image_transformed(
+        screenCenter.x + boost.pos.x, screenCenter.y + boost.pos.y,
+        imgBoosterTile, 0xFFCC66, imgBoosterSize, boost.rot)  
+    disable_alpha_blend()
+
+
 // RACKET //////////////////////////////////////////////////////////////////////
 
 [decs_template]
@@ -134,6 +224,7 @@ struct CompRacket
     balls : int // amount of owned balls
     lives : int
     score : int
+    booster : BoosterType
 
 
 def createRacket(index : int; color : uint)
@@ -199,16 +290,6 @@ def drawRacket(var racket : CompRacket)
         points |> sectorPoint(screenCenter, racket.radius, angleIn)
         fill_convex_polygon(points, racket.color)
 
-    var x = get_screen_width() - 120 * racket.index - 70
-    // score
-    set_font_size(22)
-    text_out(x, 3, string(racket.score), racket.color)
-
-    // lives
-    for i in range(racket.lives)
-        x -= 8
-        fill_rect(x, 10, 3, 14, racket.color)
-
 
 def sectorPoint(var points : array<float2>; center : float2; radius : float; angle : float)
     points |> push(float2(center.x + radius * cos(angle), center.y + radius * sin(angle)))
@@ -259,68 +340,6 @@ def updateStone(var eid : EntityId; var stone : CompStone)
 def drawStone(var stone : CompStone)
     let color = STONE_COLORS[stone.resist][min(stone.damage, stone.resist)]
     fill_circle(screenCenter.x + stone.pos.x, screenCenter.y + stone.pos.y, stone.radius, color)
-
-
-// BOOSTER /////////////////////////////////////////////////////////////////////
-
-// mostly as to do list
-enum BoosterType
-    None
-    Attempt     // immediate: +1 to racket lives
-    Score       // immediate: +50 / +100 / +250 points to score
-    Slower      // immediate: slow down own balls
-    Faster      // immediate: accelerate own balls
-    Multiplier  // immediate: add 2 balls more to every own ball
-    Attractor   // immediate: direct own balls straight to racket position
-    Braking     // continuous: lower maximum speed of racket
-    Afterburner // continuous: higher speed of racket
-    Absorber    // continuous: slow down any ball on bounce
-    Shortener   // continuous: decrease size of racket
-    Enlarger    // continuous: increase size of racket
-    Shield      // continuous: inpenetrable circular shield for own balls
-    Crusher     // continuous: own balls are breaking through without bounce
-    Sticky      // continuous: catch ball instead of bouncing
-    Autoaimer   // continuous: moves racket to nearest own ball
-    Blaster     // continuous: laser beam to shoot stones
-    Launcher    // once: rocket launcher with splash damage
-
-
-[decs_template]
-struct CompBooster
-    pos : float2
-    vel : float2
-    rot : float
-    rotv : float
-    typ : BoosterType
-
-
-def createBooster(pos, vel : float2; typ : BoosterType)
-    create_entity <| @(eid, cmp)
-        cmp |> set("eid", eid)
-        apply_decs_template(cmp, [[CompBooster
-            pos = pos,
-            vel = vel,
-            rot = random(0.0, PI * 2.0),
-            rotv = random(-0.2, 0.2),
-            typ = typ ]])
-
-
-[decs(stage = update)]
-def updateBooster(var eid : EntityId; var boost : CompBooster)
-    boost.pos += boost.vel
-    boost.rot += boost.rotv
-    boost.rotv *= 0.993
-    if !isCollide(float2(), boost.pos, VOID_RADIUS)
-        delete_entity(eid)
-
-
-[decs(stage = draw)]
-def drawBooster(var boost : CompBooster)
-    enable_premultiplied_alpha_blend()
-    imgBooster |> draw_image_transformed(
-        screenCenter.x + boost.pos.x, screenCenter.y + boost.pos.y,
-        imgBoosterTile, 0xFFCC66, imgBoosterSize, boost.rot)  
-    disable_alpha_blend()
 
 
 // BALLS ///////////////////////////////////////////////////////////////////////
@@ -487,6 +506,31 @@ def genParticleBlast(pos : float2; radius, intensity : float; color : uint)
                 acc = -vel * 0.07 + float2(random(-0.06, 0.06), random(-0.06, 0.06)),
                 color = color,
                 lifetime = intensity / 20.0 ]])
+
+
+// HUD /////////////////////////////////////////////////////////////////////////
+
+def drawHud
+    query() <| $(var racket : CompRacket)
+        var x = get_screen_width() - 120 * racket.index
+
+        // score
+        x -= 70
+        set_font_size(22)
+        text_out(x, 3, string(racket.score), racket.color)
+
+        // booster
+        find(boosters, racket.booster) <| $(booster : BoosterDesc?)
+            if booster == null
+                return
+            x -= 26
+            fill_rect(x, 7, 20, 20, racket.color)
+            text_out(x + 3, 3, booster.icon, 0x000000)
+
+        // lives
+        for i in range(racket.lives)
+            x -= 8
+            fill_rect(x, 10, 3, 14, racket.color)
 
 
 // UTILITIES ///////////////////////////////////////////////////////////////////
