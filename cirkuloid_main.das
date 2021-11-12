@@ -8,8 +8,8 @@ let POLY_FACET = 10.0 // max size of polygon interpolation in pixels
 let RACKET_WEIGHT = 8.0 // width of racket
 let VOID_RADIUS = 350.0 // distance to remove lost ball
 let STONE_COLORS <- mkStoneColors([{ auto[]
-    0x002244; 0x004477; 0x440077; 0x770000;
-    0xBB5500; 0xEEAA33; 0xFFBB33; 0xFFDDBB }])
+    0x003366; 0x006699; 0x6600AA; 0xAA0000;
+    0xBB5500; 0xEE9933; 0xFFCC66; 0xFFEEDD }])
 let RACKET_COLORS <- [{ auto[]
     0x66CCFF; 0xFF6666; 0x66FF66 }]
 let CONTROLS <-[{ auto[]
@@ -17,6 +17,8 @@ let CONTROLS <-[{ auto[]
     mkControlMouse();
     mkControlGamepad() }]
 
+var imgStone <- create_image("assets/stone.png")
+var imgStoneTile : float4
 var imgBackground <- create_image("assets/back.png")
 var imgBackgroundSize : float2
 var imgBackgroundTile : float4
@@ -37,6 +39,9 @@ def initialize(isHardReload : bool)
             createRacket(idx, color)
         levelCreate()
         commit()
+    imgStone |> premultiply_alpha()
+    imgStone |> set_image_smooth(true)
+    imgStoneTile = float4(0.0, 0.0, float(imgStone.width), float(imgStone.height))
     imgBackground |> set_image_clamp(false)
     imgBackgroundSize = float2(get_screen_width(), get_screen_height())
     imgBackgroundTile = float4(0.0, 0.0, float(get_screen_width()), float(get_screen_height()))
@@ -55,10 +60,11 @@ def act(dt : float)
 [export]
 def draw
     drawBack()
-    decs_stage("draw")
     enable_alpha_blend()
-    decs_stage("draw_aplpha")
+    decs_stage("draw_collidable")
+    decs_stage("draw_floating")
     disable_alpha_blend()
+    decs_stage("draw")
     drawHud()
     fps()
 
@@ -211,7 +217,7 @@ def updateBooster(var eid : EntityId; var boost : CompBooster)
         delete_entity(eid)
 
 
-[decs(stage = draw_aplpha)]
+[decs(stage = draw_floating)]
 def drawBooster(var boost : CompBooster)
     imgBooster |> draw_image_transformed(
         screenCenter.x + boost.pos.x, screenCenter.y + boost.pos.y,
@@ -345,10 +351,11 @@ def updateStone(var eid : EntityId; var stone : CompStone)
         genParticleBlast(stone.pos, stone.radius, 3.0, STONE_COLORS[stone.resist][0])
 
 
-[decs(stage = draw)]
+[decs(stage = draw_collidable)]
 def drawStone(var stone : CompStone)
     let color = STONE_COLORS[stone.resist][min(stone.damage, stone.resist)]
-    fill_circle(screenCenter.x + stone.pos.x, screenCenter.y + stone.pos.y, stone.radius, color)
+    let radius = stone.radius * 2.0
+    imgStone |> draw_image_transformed(screenCenter.x + stone.pos.x, screenCenter.y + stone.pos.y, imgStoneTile, color, float2(radius, radius), 0.0)  
 
 
 // BALLS ///////////////////////////////////////////////////////////////////////
@@ -571,9 +578,12 @@ def mkStoneColors(basic : array<uint>)
         faded[resist] |> resize(resist + 1)
         for damage in range(resist)
             let ratio = float(resist - damage) / float(resist)
-            faded[resist][damage] = (colorCompFade(color, ratio, 16u)
-                | colorCompFade(color, ratio, 8u)
-                | colorCompFade(color, ratio))
+            let alpha = ratio * 0.5 + 0.5
+            let fade = ratio * 0.75 + 0.25
+            faded[resist][damage] = (colorCompFade(0xFF000000, alpha, 24u)
+                | colorCompFade(color, fade, 16u)
+                | colorCompFade(color, fade, 8u)
+                | colorCompFade(color, fade))
     return <- faded
 
 
