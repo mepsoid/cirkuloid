@@ -17,6 +17,9 @@ let CONTROLS <-[{ auto[]
     mkControlMouse();
     mkControlGamepad() }]
 
+var imgBackground <- create_image("assets/back.png")
+var imgBackgroundSize : float2
+var imgBackgroundTile : float4
 var imgBooster <- create_image("assets/star.png")
 var imgBoosterSize : float2
 var imgBoosterTile : float4
@@ -34,7 +37,11 @@ def initialize(isHardReload : bool)
             createRacket(idx, color)
         levelCreate()
         commit()
+    imgBackground |> set_image_clamp(false)
+    imgBackgroundSize = float2(get_screen_width(), get_screen_height())
+    imgBackgroundTile = float4(0.0, 0.0, float(get_screen_width()), float(get_screen_height()))
     imgBooster |> premultiply_alpha()
+    imgBooster |> set_image_smooth(true)
     imgBoosterSize = float2(imgBooster.width, imgBooster.height)
     imgBoosterTile = float4(0.0, 0.0, float(imgBooster.width), float(imgBooster.height))
 
@@ -47,6 +54,7 @@ def act(dt : float)
 
 [export]
 def draw
+    drawBack()
     decs_stage("draw")
     enable_alpha_blend()
     decs_stage("draw_aplpha")
@@ -510,6 +518,11 @@ def genParticleBlast(pos : float2; radius, intensity : float; color : uint)
 
 
 // HUD /////////////////////////////////////////////////////////////////////////
+
+def drawBack
+    imgBackground |> draw_image_transformed(0.0, 0.0,
+        imgBackgroundTile, 0xFFFFFFFF, imgBackgroundSize, 0.0, 0.0, 0.0)  
+
 
 def drawHud
     query() <| $(var racket : CompRacket)
